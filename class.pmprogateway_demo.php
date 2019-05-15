@@ -312,30 +312,109 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                 function sendToDemo(&$order) 
                 {
                     // Execute 3
-                    // print_r('sendToDemo'); exit;
+                    // print_r(json_encode($order)); exit;
                     global $wp;
 
-                    
+                    $mode = pmpro_getOption("gateway_environment");
+                    if ($mode == 'sandbox') {
+                        $key = pmpro_getOption("demo_tpk");
+                        $skey = pmpro_getOption("demo_tsk");
+                    } else {
+                        $key = pmpro_getOption("demo_lpk");
+                        $skey = pmpro_getOption("demo_lsk");
+                    }
+                    if ($key  == '' || $skey == '') {
+                        echo "Api keys not set";
+                        exit;
+                    }
+
+                    // set the plans details
+                    $pmpro_level = $order->membership_level;
+                    $plan_name = $pmpro_level->id .'_'. $pmpro_level->name;
+
+                    // setting interval for the subscription
+                    if (($pmpro_level->cycle_number > 0) && ($pmpro_level->billing_amount > 0) && ($pmpro_level->cycle_period != "")) {
+                        if ($pmpro_level->cycle_number < 10 && $pmpro_level->cycle_period == 'Day') {
+                            $interval = 'weekly';
+                        } elseif (($pmpro_level->cycle_number == 90) && ($pmpro_level->cycle_period == 'Day')) {
+                            $interval = 'quarterly';
+                        } elseif (($pmpro_level->cycle_number >= 10) && ($pmpro_level->cycle_period == 'Day')) {
+                            $interval = 'monthly';
+                        } elseif (($pmpro_level->cycle_number == 3) && ($pmpro_level->cycle_period == 'Month')) {
+                            $interval = 'quarterly';
+                        } elseif (($pmpro_level->cycle_number > 0) && ($pmpro_level->cycle_period == 'Month')) {
+                            $interval = 'monthly';
+                        } elseif (($pmpro_level->cycle_number > 0) && ($pmpro_level->cycle_period == 'Year')) {
+                            $interval = 'annually';
+                        }
+
+                        // amount
+                        $amount = $pmpro_level->billing_amount;
+                        if ($amount == 0) {
+                            $amount = $pmpro_level->initial_payment;
+                        }
+
+                        // duration
+                        $duration = $pmpro_level->billing_limit;
+                        if ($duration == '0') {
+                            $duration = '';
+                        }
+
+                        //Create Plan
+                        $demo_plan_url = 'https://api.ravepay.co/v2/gpx/paymentplans/create';
+                        // fetch Plan
+                        $demo_fetch_plan_url = 'https://api.ravepay.co/v2/gpx/paymentplans/query?seckey='.$skey.'&q='.$plan_name;
+
+                        $headers = array(
+                            'Content-Type'  => 'application/json'
+                        );
+
+                        $checkargs = array(
+                            'headers' => $headers,
+                            'timeout' => 60
+                        );
+
+                        // Check if plan exist
+                        $checkrequest = wp_remote_get($demo_fetch_plan_url, $checkargs);
+                        if (!is_wp_error($checkrequest)) {
+                            $response = json_decode(wp_remote_retrieve_body($checkrequest));
+                            if ($response->data->page_info->total >= 1) {
+                                $planid = $response->data->paymentplans->id;
+                                
+                            } else {
+                                //Create Plan
+                                $body = array(
+                                    'name'      => $plan_name,
+                                    'amount'    => $amount,
+                                    'interval'  => $interval,
+                                    'duration'  => $duration,
+                                    'seckey'    => $skey
+                                );
+                                $args = array(
+                                    'body'      => json_encode($body),
+                                    'headers'   => $headers,
+                                    'timeout'   => 60
+                                );
+
+                                $request = wp_remote_post($demo_plan_url, $args);
+                                if (!is_wp_error($request)) {
+                                    $demo_response = json_decode(wp_remote_retrieve_body($request));
+                                    $planid = $demo_response->data->id;
+                                    $plan_name = $demo_response->data->name;
+                                }
+                            }
+
+                        }
+                        
+                    } // end of subscription setting and plan
+
                     $params = array();
                     $amount = $order->PaymentAmount;
                     $amount_tax = $order->getTaxForPrice($amount);
                     $amount = round((float)$amount + (float)$amount_tax, 2);
             
                     //call directkit to get Webkit Token
-                    $amount = floatval($order->InitialPayment);
-
-                    // echo pmpro_url("confirmation", "?level=" . $order->membership_level->id);
-                    // die();
-                    $mode = pmpro_getOption("gateway_environment");
-                    if ($mode == 'sandbox') {
-                        $key = pmpro_getOption("demo_tpk");
-                    } else {
-                        $key = pmpro_getOption("demo_lpk");
-
-                    }
-                    if ($key  == '') {
-                        echo "Api keys not set";
-                    }
+                    $amount = floatval($order->InitialPayment);                    
 
                     $currency = pmpro_getOption("currency");
                     
@@ -343,15 +422,16 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                     $headers = array(
                         'Content-Type'  => 'application/json'
                     );
-                    //Create Plan
+
+                    // request to make payment
                     $body = array(
 
                         'customer_email'        => $order->Email,
                         'amount'                => $amount,
                         'txref'                 => $order->code,
-                        // 'txref'                 => 'PMPRO_'.time(),
 				        'PBFPubKey'             => $key,
                         'currency'              => $currency,
+                        'payment_plan'          => $planid,
                         'redirect_url'          => pmpro_url("confirmation", "?level=" . $order->membership_level->id)
 
                     );
@@ -559,89 +639,12 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                                         $enddate = "NULL";
                                     }
 
-                                    /* setting interval for the subscription
-                                    if (($pmpro_level->cycle_number > 0) && ($pmpro_level->billing_amount > 0) && ($pmpro_level->cycle_period != "")) {
-                                        if ($pmpro_level->cycle_number < 10 && $pmpro_level->cycle_period == 'Day') {
-                                            $interval = 'weekly';
-                                        } elseif (($pmpro_level->cycle_number == 90) && ($pmpro_level->cycle_period == 'Day')) {
-                                            $interval = 'quarterly';
-                                        } elseif (($pmpro_level->cycle_number >= 10) && ($pmpro_level->cycle_period == 'Day')) {
-                                            $interval = 'monthly';
-                                        } elseif (($pmpro_level->cycle_number == 3) && ($pmpro_level->cycle_period == 'Month')) {
-                                            $interval = 'quarterly';
-                                        } elseif (($pmpro_level->cycle_number > 0) && ($pmpro_level->cycle_period == 'Month')) {
-                                            $interval = 'monthly';
-                                        } elseif (($pmpro_level->cycle_number > 0) && ($pmpro_level->cycle_period == 'Year')) {
-                                            $interval = 'annually';
-                                        }
-
-                                        $amount = $pmpro_level->billing_amount;
-                                        $koboamount = $amount;
-                                        //Create Plan
-                                        $demo_url = 'https://api.ravepay.co/plan';
-                                        $subscription_url = 'https://api.ravepay.co/subscription';
-                                        $demo_check_url = 'https://api.ravepay.co/plan?amount='.$koboamount.'&interval='.$interval;
-                                        $headers = array(
-                                            'Content-Type'  => 'application/json'
-                                        );
-
-                                        $checkargs = array(
-                                            'headers' => $headers,
-                                            'timeout' => 60
-                                        );
-                                        // Check if plan exist
-                                        $checkrequest = wp_remote_get($demo_check_url, $checkargs);
-                                        if (!is_wp_error($checkrequest)) {
-                                            $response = json_decode(wp_remote_retrieve_body($checkrequest));
-                                            if ($response->meta->total >= 1) {
-                                                $plan = $response->data[0];
-                                                $plancode = $plan->plan_code;
-                                                
-                                            } else {
-                                                //Create Plan
-                                                $body = array(
-                                                    'name'      => '('.number_format($amount).') - '.$interval.' - ['.$pmpro_level->cycle_number.' - '.$pmpro_level->cycle_period.']' ,
-                                                    'amount'    => $koboamount,
-                                                    'interval'  => $interval
-                                                );
-                                                $args = array(
-                                                    'body'      => json_encode($body),
-                                                    'headers'   => $headers,
-                                                    'timeout'   => 60
-                                                );
-
-                                                $request = wp_remote_post($demo_url, $args);
-                                                if (!is_wp_error($request)) {
-                                                    $demo_response = json_decode(wp_remote_retrieve_body($request));
-                                                    $plancode = $demo_response->data->plan_code;
-                                                }
-                                            }
-
-                                        }
-                                        $body = array(
-                                            'customer'  => $customer_code,
-                                            'plan'      => $plancode
-                                        );
-                                        $args = array(
-                                            'body'      => json_encode($body),
-                                            'headers'   => $headers,
-                                            'timeout'   => 60
-                                        );
-
-                                        $request = wp_remote_post($subscription_url, $args);
-                                        if (!is_wp_error($request)) {
-                                            $demo_response = json_decode(wp_remote_retrieve_body($request));
-                                            $subscription_code = $demo_response->data->subscription_code;
-                                            $token = $demo_response->data->email_token;
-                                            $morder->subscription_transaction_id = $subscription_code;
-                                            $morder->subscription_token = $token;
-            
-                                            
-                                        }
-                                        
-                                    } */
                                     // 
                                     // die();
+
+                                    //using the plan details to set as subscription details
+                                    $morder->subscription_transaction_id = $demo_response->data->txid;
+                                    $morder->subscription_token = $demo_response->data->flwref;
                                     
                                     $custom_level = array(
                                         'user_id'           => $morder->user_id,
@@ -736,57 +739,42 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                 // cancel subscriptiom
                 function cancel(&$order) 
                 {
+                    global $wpdb;
 
                     //no matter what happens below, we're going to cancel the order in our system
                     $order->updateStatus("cancelled");
                     $mode = pmpro_getOption("gateway_environment");
-                    $code = $order->subscription_transaction_id;
+                    $transaction_id = $order->subscription_transaction_id;
+
                     if ($mode == 'sandbox') {
-                        $key = pmpro_getOption("demo_tsk");
+                        $skey = pmpro_getOption("demo_tsk");
                     } else {
-                        $key = pmpro_getOption("demo_lsk");
+                        $skey = pmpro_getOption("demo_lsk");
 
                     }
-                    if ($order->subscription_transaction_id != "") {
-                        $demo_url = 'https://api.ravepay.co/subscription/' . $code;
+                    if ($transaction_id != "") {
+                        $demo_url = 'https://api.ravepay.co/v2/gpx/subscriptions/'.$transaction_id.'/cancel?fetch_by_tx=1';
                         $headers = array(
-                            'Authorization' => 'Bearer ' . $key
+                            'Content-Type' => 'application/json'
+                        );
+                        $body = array(
+                            'seckey' => $skey,
                         );
                         $args = array(
+                            'body' => json_encode($body),
                             'headers' => $headers,
                             'timeout' => 60
                         );
-                        $request = wp_remote_get($demo_url, $args);
+                        $request = wp_remote_post($demo_url, $args);
                         if (!is_wp_error($request) && 200 == wp_remote_retrieve_response_code($request)) {
                             $demo_response = json_decode(wp_remote_retrieve_body($request));
-                            if ('active' == $demo_response->data->status && $code == $demo_response->data->subscription_code && '1' == $demo_response->status) {
+                            if ('success' == $demo_response->status && 'cancelled' == $demo_response->data->status) {
                                 
-                                $demo_url = 'https://api.ravepay.co/subscription/disable';
-                                $headers = array(
-                                    'Content-Type'  => 'application/json',
-                                    'Authorization' => "Bearer ".$key
-                                );
-                                $body = array(
-                                    'code'  => $demo_response->data->subscription_code,
-                                    'token' => $demo_response->data->email_token,
+                                $wpdb->query("DELETE FROM $wpdb->pmpro_membership_orders WHERE id = '" . $order->id . "'");
 
-                                );
-                                $args = array(
-                                    'body'      => json_encode($body),
-                                    'headers'   => $headers,
-                                    'timeout'   => 60
-                                );
-
-                                $request = wp_remote_post($demo_url, $args);
-                                // print_r($request);
-                                if (!is_wp_error($request)) {
-                                    $demo_response = json_decode(wp_remote_retrieve_body($request));
-                                }
                             }
                         }
-                    }
-                    global $wpdb;
-                    $wpdb->query("DELETE FROM $wpdb->pmpro_membership_orders WHERE id = '" . $order->id . "'");
+                    }    
                 }
 
                 function delete(&$order) 
