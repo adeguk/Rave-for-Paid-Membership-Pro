@@ -125,27 +125,16 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                     
                     define('SHORTINIT', true);
                     $input = @file_get_contents("php://input");
-                    $event = json_decode($input);
-                    
-                    switch($event->event){
-                    case 'subscription.create':
+                    $response = json_decode($input);
 
-                        break;
-                    case 'subscription.disable':
-                        break;
-                    case 'charge.success':
-                        $morder =  new MemberOrder($event->data->reference);
-                        $morder->getMembershipLevel();
-                        $morder->getUser();
-                        $morder->Gateway->pmpro_pages_shortcode_confirmation('', $event->data->reference);
-                        break;
-                    case 'invoice.create':
-                        self::renewpayment($event);
-                    case 'invoice.update':
-                        self::renewpayment($event);
-                        
-                        break;
+                    $orderref = $response->orderRef;
+
+                    // explode to check if orderRef has SUB as prefix
+                    $result = explode("_", $orderref);
+                    if (in_array("SUB", $result, TRUE)) {
+                        self::renewpayment($response);
                     }
+
                     http_response_code(200);
                     exit();
                 }
@@ -464,18 +453,17 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                 }
 
                 // renew payment
-                static function renewpayment($event) 
+                static function renewpayment($response) 
                 {
-                    // print_r('renewpayment'); exit;
-                    global $wp,$wpdb;
+                    global $wp, $wpdb;
 
-                    if (isset($event->data->paid) && ($event->data->paid == 1)) {
+                    if (isset($response->status) && ($response->status == 'successful')) {
 
-                        $amount = $event->data->subscription->amount/100;
+                        $amount = $response->amount;
                         $old_order = new MemberOrder();
-                        $subscription_code = $event->data->subscription->subscription_code;
-                        $email = $event->data->customer->email;
-                        $old_order->getLastMemberOrderBySubscriptionTransactionID($subscription_code);
+                        $txref = $response->txRef;
+                        $email = $response->customer->email;
+                        $old_order->getLastMemberOrderBySubscriptionTransactionID($txref);
 
                         if (empty($old_order)) { 
                             exit();
@@ -493,13 +481,13 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                         $morder->membership_id = $old_order->membership_id;
                         $morder->InitialPayment = $amount;  //not the initial payment, but the order class is expecting this
                         $morder->PaymentAmount = $amount;
-                        $morder->payment_transaction_id = $event->data->invoice_code;
-                        $morder->subscription_transaction_id = $subscription_code;
+                        $morder->payment_transaction_id = $response->id;
+                        $morder->subscription_transaction_id = $txref;
 
                         $morder->gateway = $old_order->gateway;
                         $morder->gateway_environment = $old_order->gateway_environment;
-
                         $morder->Email = $email;
+
                         $pmpro_level = $wpdb->get_row("SELECT * FROM $wpdb->pmpro_membership_levels WHERE id = '" . (int)$morder->membership_id . "' LIMIT 1");
                         $pmpro_level = apply_filters("pmpro_checkout_level", $pmpro_level);
                         $startdate = apply_filters("pmpro_checkout_start_date", "'" . current_time("mysql") . "'", $morder->user_id, $pmpro_level);
@@ -643,8 +631,8 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                                     // die();
 
                                     //using the plan details to set as subscription details
-                                    $morder->subscription_transaction_id = $demo_response->data->txid;
-                                    $morder->subscription_token = $demo_response->data->flwref;
+                                    $morder->subscription_transaction_id = $demo_response->data->txref;
+                                    $morder->subscription_token = $demo_response->data->txid;
                                     
                                     $custom_level = array(
                                         'user_id'           => $morder->user_id,
@@ -744,7 +732,8 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                     //no matter what happens below, we're going to cancel the order in our system
                     $order->updateStatus("cancelled");
                     $mode = pmpro_getOption("gateway_environment");
-                    $transaction_id = $order->subscription_transaction_id;
+                    // $transaction_id = $order->subscription_transaction_id;
+                    $rave_txid = $order->subscription_token;
 
                     if ($mode == 'sandbox') {
                         $skey = pmpro_getOption("demo_tsk");
@@ -752,8 +741,8 @@ if (!function_exists('Demo_Pmp_Gateway_load')) {
                         $skey = pmpro_getOption("demo_lsk");
 
                     }
-                    if ($transaction_id != "") {
-                        $demo_url = 'https://api.ravepay.co/v2/gpx/subscriptions/'.$transaction_id.'/cancel?fetch_by_tx=1';
+                    if ($rave_txid != "") {
+                        $demo_url = 'https://api.ravepay.co/v2/gpx/subscriptions/'.$rave_txid.'/cancel?fetch_by_tx=1';
                         $headers = array(
                             'Content-Type' => 'application/json'
                         );
