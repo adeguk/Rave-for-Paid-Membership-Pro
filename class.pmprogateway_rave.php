@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Rave Gateway for Paid Memberships Pro
  * Plugin URI: https://github.com/emmajiugo
- * Description: Plugin to Payment for Paid Memberships Pro
- * Version: 1.4.1
+ * Description: Rave Plugin Payment for Paid Memberships Pro
+ * Version: 1.2
  * Author: Rave
  * License: GPLv2 or later
  */
