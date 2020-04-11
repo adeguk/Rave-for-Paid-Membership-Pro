@@ -13,8 +13,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
 
     DEFINE('KKD_RAVEPMP', "rave-paidmembershipspro");
 
-    function Rave_Pmp_Gateway_load() 
-    {
+    function Rave_Pmp_Gateway_load() {
         // paid memberships pro required
         if (!class_exists('PMProGateway')) {
             return;
@@ -33,11 +32,9 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
              * Handles Rave integration.
              *
              */
-            class PMProGateway_Rave extends PMProGateway
-            {
+            class PMProGateway_Rave extends PMProGateway {
 
-                function __construct($gateway = null)
-                {
+                function __construct($gateway = null) {
                     $this->gateway = $gateway;
                     $this->gateway_environment =  pmpro_getOption("gateway_environment");
 
@@ -47,8 +44,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Run on WP init
                  */
-                static function init() 
-                {
+                static function init() {
                     //make sure Rave is a gateway option
                     add_filter('pmpro_gateways', array('PMProGateway_Rave', 'pmpro_gateways'));
                     
@@ -65,7 +61,6 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                         add_filter('pmpro_required_billing_fields', array('PMProGateway_Rave', 'pmpro_required_billing_fields'));
                         add_filter('pmpro_include_payment_information_fields', '__return_false');
                         add_filter('pmpro_checkout_before_change_membership_level', array('PMProGateway_Rave', 'pmpro_checkout_before_change_membership_level'), 10, 2);
-                        
                         add_filter('pmpro_gateways_with_pending_status', array('PMProGateway_Rave', 'pmpro_gateways_with_pending_status'));
                         add_filter('pmpro_pages_shortcode_checkout', array('PMProGateway_Rave', 'pmpro_pages_shortcode_checkout'), 20, 1);
                         add_filter('pmpro_checkout_default_submit_button', array('PMProGateway_Rave', 'pmpro_checkout_default_submit_button'));
@@ -77,8 +72,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Redirect Settings to PMPro settings
                  */
-                static function plugin_action_links($links, $file) 
-                {
+                static function plugin_action_links($links, $file) {
                     static $this_plugin;
 
                     if (false === isset($this_plugin) || true === empty($this_plugin)) {
@@ -92,8 +86,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
 
                     return $links;
                 }
-                static function pmpro_checkout_default_submit_button($show)
-                {
+                static function pmpro_checkout_default_submit_button($show) {
                     global $gateway, $pmpro_requirebilling;
                     
                     //show our submit buttons
@@ -102,8 +95,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                     <input type="hidden" name="submit-checkout" value="1" />		
                     <input type="submit" class="pmpro_btn pmpro_btn-submit-checkout" value="<?php if ($pmpro_requirebilling) { _e('Check Out with Rave', 'pmpro'); } else { _e('Submit and Confirm', 'pmpro');}?> &raquo;" />		
                     </span>
-                    <?php
-                
+                    <?php 
                     //don't show the default
                     return false;
                 }
@@ -111,15 +103,13 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Make sure Rave is in the gateways list
                  */
-                static function pmpro_gateways($gateways) 
-                {
+                static function pmpro_gateways($gateways) {
                     if (empty($gateways['rave'])) {
                         $gateways = array_slice($gateways, 0, 1) + array("rave" => __('Rave', KKD_RAVEPMP)) + array_slice($gateways, 1);
                     }
                     return $gateways;
                 }
-                function kkd_pmpro_rave_ipn() 
-                {
+                function kkd_pmpro_rave_ipn() {
                     // print_r('kkd_pmpro_rave_ipn'); exit;
                     global $wpdb;
                     
@@ -142,8 +132,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Get a list of payment options that the Rave gateway needs/supports.
                  */
-                static function getGatewayOptions() 
-                {
+                static function getGatewayOptions() {
                     $options = array (
                         'rave_tsk',
                         'rave_tpk',
@@ -161,8 +150,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Set payment options for payment settings page.
                  */
-                static function pmpro_payment_options($options) 
-                {
+                static function pmpro_payment_options($options) {
                     //get Rave options
                     $rave_options = self::getGatewayOptions();
 
@@ -175,8 +163,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Display fields for Rave options.
                  */
-                static function pmpro_payment_option_fields($values, $gateway) 
-                {
+                static function pmpro_payment_option_fields($values, $gateway) {
                     ?>
                     <tr class="pmpro_settings_divider gateway gateway_rave" <?php if($gateway != "rave") { ?>style="display: none;"<?php } ?>>
                         <td colspan="2">
@@ -231,8 +218,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Remove required billing fields
                  */
-                static function pmpro_required_billing_fields($fields)
-                {
+                static function pmpro_required_billing_fields($fields) {
                     unset($fields['bfirstname']);
                     unset($fields['blastname']);
                     unset($fields['baddress1']);
@@ -273,8 +259,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Instead of change membership levels, send users to Rave payment page.
                  */
-                static function pmpro_checkout_before_change_membership_level($user_id, $morder)
-                {
+                static function pmpro_checkout_before_change_membership_level($user_id, $morder) {
                     // Execute 2
                     // print_r('pmpro_checkout_before_change_membership_level'); exit;
                     global $wpdb, $discount_code_id;
@@ -298,8 +283,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                     $morder->Gateway->sendToRave($morder);
                 }
 
-                function sendToRave(&$order) 
-                {
+                function sendToRave(&$order) {
                     // Execute 3
                     // print_r(json_encode($order)); exit;
                     global $wp;
@@ -368,8 +352,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                         if (!is_wp_error($checkrequest)) {
                             $response = json_decode(wp_remote_retrieve_body($checkrequest));
                             if ($response->data->page_info->total >= 1) {
-                                $planid = $response->data->paymentplans->id;
-                                
+                                $planid = $response->data->paymentplans->id; 
                             } else {
                                 //Create Plan
                                 $body = array(
@@ -392,9 +375,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                                     $plan_name = $rave_response->data->name;
                                 }
                             }
-
                         }
-                        
                     } // end of subscription setting and plan
 
                     $params = array();
@@ -414,15 +395,13 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
 
                     // request to make payment
                     $body = array(
-
                         'customer_email'        => $order->Email,
                         'amount'                => $amount,
                         'txref'                 => $order->code,
-				        'PBFPubKey'             => $key,
+				                'PBFPubKey'             => $key,
                         'currency'              => $currency,
                         'payment_plan'          => $planid,
                         'redirect_url'          => pmpro_url("confirmation", "?level=" . $order->membership_level->id)
-
                     );
                     $args = array(
                         'body'      => json_encode($body),
@@ -453,12 +432,10 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 }
 
                 // renew payment
-                static function renewpayment($response) 
-                {
+                static function renewpayment($response) {
                     global $wp, $wpdb;
 
                     if (isset($response->status) && ($response->status == 'successful')) {
-
                         $amount = $response->amount;
                         $old_order = new MemberOrder();
                         $txref = $response->txRef;
@@ -515,15 +492,12 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                         $morder->ExpirationDate = $morder->expirationmonth . $morder->expirationyear;
                         $morder->ExpirationDate_YdashM = $morder->expirationyear . "-" . $morder->expirationmonth;
 
-                        
                         //save
                         if ($morder->status != 'success') {
-                            
                             if (pmpro_changeMembershipLevel($custom_level, $morder->user_id, 'changed')) {
                                 $morder->status = "success";
                                 $morder->saveOrder();
                             }
-                                
                         }
                         $morder->getMemberOrderByID($morder->id);
 
@@ -534,11 +508,9 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                         do_action('pmpro_subscription_payment_completed', $morder);
                         exit();
                     }
-
                 }
 
-                static function pmpro_pages_shortcode_checkout($content) 
-                {
+                static function pmpro_pages_shortcode_checkout($content){
                     // Execute 1
                     // print_r('pmpro_pages_shortcode_checkout'); exit;
                     $morder = new MemberOrder();
@@ -562,9 +534,7 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                 /**
                  * Custom confirmation page
                  */
-                static function pmpro_pages_shortcode_confirmation($content, $reference = null)
-                {
-
+                static function pmpro_pages_shortcode_confirmation($content, $reference = null) {
                     global $wpdb, $current_user, $pmpro_invoice, $pmpro_currency, $gateway;
 
                     if (!isset($_REQUEST['txref'])) {
@@ -591,7 +561,6 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                                 $key = pmpro_getOption("rave_tsk");
                             } else {
                                 $key = pmpro_getOption("rave_lsk");
-
                             }
 
                             $rave_url = 'https://api.ravepay.co/flwv3-pug/getpaidx/api/v2/verify';
@@ -611,25 +580,19 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                             $request = wp_remote_post($rave_url, $args);
                             // print_r($request);
                             // exit;
-
                             if (!is_wp_error($request) && 200 == wp_remote_retrieve_response_code($request) ) {
                                 $rave_response = json_decode(wp_remote_retrieve_body($request));
                                 if ('successful' == $rave_response->data->status && $rave_response->data->chargecode == '00' || $rave_response->data->chargecode == '0') {
-                                    
-                                    
                                     //$customer_code = $rave_response->data->customer->customer_code;
-                                    
-                                    if (strlen($order->subscription_transaction_id) > 3) {
+                                    if (isset($order->subscription_transaction_id) && strlen($order->subscription_transaction_id) > 3) {
                                         $enddate = "'" . date("Y-m-d", strtotime("+ " . $order->subscription_transaction_id, current_time("timestamp"))) . "'";
                                     } elseif (!empty($pmpro_level->expiration_number)) {
                                         $enddate = "'" . date("Y-m-d", strtotime("+ " . $pmpro_level->expiration_number . " " . $pmpro_level->expiration_period, current_time("timestamp"))) . "'";
                                     } else {
                                         $enddate = "NULL";
                                     }
-
-                                    // 
+                                    
                                     // die();
-
                                     //using the plan details to set as subscription details
                                     $morder->subscription_transaction_id = $rave_response->data->txref;
                                     $morder->subscription_token = $rave_response->data->txid;
@@ -650,14 +613,12 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                                     );
 
                                     if ($morder->status != 'success') {
-                                        
                                         if (pmpro_changeMembershipLevel($custom_level, $morder->user_id, 'changed')) {
                                             $morder->membership_id = $pmpro_level->id;
                                             $morder->payment_transaction_id = $_REQUEST['txref'];
                                             $morder->status = "success";
                                             $morder->saveOrder();
                                         }
-                                            
                                     }
                                     // echo "<pre>";
                                     // print_r($morder);
@@ -700,33 +661,22 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                                     
                                     $content .= ob_get_contents();
                                     ob_end_clean();
-
                                 } else {
-
                                     $content = 'Invalid Reference';
-                                    
                                 }
-
                             } else {
-                                
                                 $content = 'Unable to Verify Transaction';
-
                             }
-                            
                         } else {
-                            
                             $content = 'Invalid Transaction Reference';
                         }
                     }
             
-            
                     return $content;
-                    
                 }
 
                 // cancel subscriptiom
-                function cancel(&$order) 
-                {
+                function cancel(&$order){
                     global $wpdb;
 
                     //no matter what happens below, we're going to cancel the order in our system
@@ -739,7 +689,6 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                         $skey = pmpro_getOption("rave_tsk");
                     } else {
                         $skey = pmpro_getOption("rave_lsk");
-
                     }
                     if ($rave_txid != "") {
                         $rave_url = 'https://api.ravepay.co/v2/gpx/subscriptions/'.$rave_txid.'/cancel?fetch_by_tx=1';
@@ -758,16 +707,13 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
                         if (!is_wp_error($request) && 200 == wp_remote_retrieve_response_code($request)) {
                             $rave_response = json_decode(wp_remote_retrieve_body($request));
                             if ('success' == $rave_response->status && 'cancelled' == $rave_response->data->status) {
-                                
                                 $wpdb->query("DELETE FROM $wpdb->pmpro_membership_orders WHERE id = '" . $order->id . "'");
-
                             }
                         }
                     }    
                 }
 
-                function delete(&$order) 
-                {
+                function delete(&$order) {
                     //no matter what happens below, we're going to cancel the order in our system
                     $order->updateStatus("cancelled");
                     global $wpdb;
@@ -777,4 +723,3 @@ if (!function_exists('Rave_Pmp_Gateway_load')) {
         }
     }
 }
-?>
